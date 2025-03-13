@@ -51,7 +51,7 @@ The above might work for Docker on Windows
 
 ## Swagger URL
 
-- `http://localhost:5000/swagger`
+- `http://localhost:8080/swagger`
 
 ## GitHub Actions build
 
