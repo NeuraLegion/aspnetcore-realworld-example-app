@@ -1,0 +1,58 @@
+name: Security Tests
+
+on:
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  checks: write
+  contents: read
+
+jobs:
+  security-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '22'
+
+    - name: Install SecTester dependencies
+      run: npm install --save-dev @sectester/core @sectester/repeater @sectester/scan @sectester/runner
+
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.204
+
+    - name: Set up Docker Compose
+      run: sudo apt-get install docker-compose-plugin
+
+    - name: Start application
+      env:
+        ASPNETCORE_Conduit_ConnectionString: ${{ secrets.ASPNETCORE_Conduit_ConnectionString }}
+        ASPNETCORE_Conduit_DatabaseProvider: ${{ secrets.ASPNETCORE_Conduit_DatabaseProvider }}
+      run: |
+        docker compose up -d
+        until nc -zv 127.0.0.1 5000; do sleep 1; done
+
+    - name: Run security tests
+      env:
+        BRIGHT_HOSTNAME: ${{ vars.BRIGHT_HOSTNAME }}
+        BRIGHT_PROJECT_ID: ${{ vars.BRIGHT_PROJECT_ID }}
+        BRIGHT_TOKEN: ${{ secrets.BRIGHT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BRIGHT_TARGET_URL: http://127.0.0.1:5000
+      run: |
+        node --experimental-transform-types --experimental-strip-types --experimental-detect-module \
+        --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning \
+        --test .brightsec/tests/*.test.ts --test-concurrency=4
+
+    - name: Shut down application
+      if: always()
+      run: docker compose down
